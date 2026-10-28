@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monitor regulatorio de gasolineras</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1d1d1b;--mu:#6b6a64;--bd:#e2e0d8;--ac:#1f4e79;--r:#b3261e;--rb:#fde8e6;--a:#8a5a00;--ab:#fdf0d5;--g:#2e6b3a;--gb:#e3f2e5}
+@media (prefers-color-scheme:dark){:root{--bg:#171716;--card:#222220;--tx:#efeee9;--mu:#a3a198;--bd:#37362f;--ac:#7fb2e0;--r:#ff8a80;--rb:#3d1f1c;--a:#f2c35a;--ab:#3b2f12;--g:#7fd18c;--gb:#1b3020;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 Helvetica,"Helvetica Neue",Arial,sans-serif;padding:env(safe-area-inset-top,0) 14px 90px;max-width:760px;margin-inline:auto}
+h1{font-size:20px;margin:16px 0 2px}.sub{color:var(--mu);font-size:13px;margin:0 0 10px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chip{border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-left-width:5px;border-radius:10px;padding:12px;margin:10px 0}
+.card.alto{border-left-color:var(--r)}.card.medio{border-left-color:var(--a)}.card.bajo{border-left-color:var(--g)}
+.top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--mu)}
+.b{font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px}
+.b.alto{background:var(--rb);color:var(--r)}.b.medio{background:var(--ab);color:var(--a)}.b.bajo{background:var(--gb);color:var(--g)}
+.card h3{font-size:15px;margin:6px 0 4px}.card p{margin:4px 0;font-size:14px}
+.do{background:var(--bg);border-radius:6px;padding:6px 8px;font-size:13px}
+.row{display:flex;justify-content:space-between;margin-top:8px;font-size:13px}.row a{color:var(--ac)}
+input,textarea{width:100%;font-family:inherit;font-size:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;margin:4px 0}
+details{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:10px 0}summary{font-weight:600;cursor:pointer}
+.btn{background:var(--ac);color:var(--bg);border:0;border-radius:8px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer}
+.btn.s{background:var(--card);color:var(--tx);border:1px solid var(--bd);text-decoration:none}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--bd);display:flex;justify-content:center}
+.bar .btn{flex:1;max-width:360px}#rep{min-height:240px}
+</style></head><body>
+<h1>⛽ Monitor regulatorio de estaciones de servicio</h1>
+<p class="sub">Solo información del año en curso, de hoy y de los últimos 7 días.</p><p class="sub" id="upd">Cargando…</p>
+<button class="btn" id="sync" style="width:100%;margin:4px 0">🔄 Buscar novedades ahora (DOF y medios)</button>
+<p class="sub" id="st"></p>
+<details id="cfg"><summary>⚙ Conexión con GitHub</summary>
+<input id="g_repo" placeholder="usuario/repositorio">
+<input id="g_br" placeholder="rama (main)">
+<input id="g_tok" type="password" placeholder="Token de GitHub (solo Actions: lectura y escritura)">
+<button class="btn s" id="save">Guardar</button>
+<p class="sub">El token se guarda únicamente en este navegador. Créalo en GitHub → Settings → Developer settings → Fine-grained tokens, limitado a este repositorio.</p></details>
+<div class="chips" id="fp"></div><div class="chips" id="fl"></div><div class="chips" id="fo"></div><div id="list"></div>
+<details id="repbox"><summary>📝 Reporte para cliente</summary>
+<input id="cli" placeholder="Nombre del cliente o estación">
+<textarea id="rep" placeholder="Marca novedades y toca “Generar reporte”."></textarea>
+<div style="display:flex;gap:8px"><button class="btn s" id="cp">Copiar</button>
+<a class="btn s" id="wa" target="_blank" rel="noopener">WhatsApp</a></div></details>
+<p class="sub">Clasificación automática con IA: verifica en la fuente oficial antes de actuar o informar a un cliente.</p>
+<div class="bar"><button class="btn" id="gen">Generar reporte (<span id="cnt">0</span>)</button></div>
+<script>
+const LV={alto:"URGENTE",medio:"MEDIO",bajo:"BAJO"},EM={alto:"🔴",medio:"🟠",bajo:"🟢"},ORD={alto:0,medio:1,bajo:2};
+let items=[],sel=new Set(),fl="todos",fo="todas",fp="semana";
+const TODAY=new Date().toLocaleDateString("sv-SE",{timeZone:"America/Mexico_City"});const $=i=>document.getElementById(i);
+const esc=x=>String(x||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let lastUpd=null;
+async function load(){
+ const d=await (await fetch("items.json?"+Date.now())).json(),old=new Set(items.map(i=>i.id));
+ items=d.items.sort((a,b)=>ORD[a.level]-ORD[b.level]||b.date.localeCompare(a.date));
+ $("upd").textContent=d.updated?"Última actualización: "+new Date(d.updated).toLocaleString("es-MX",{dateStyle:"medium",timeStyle:"short"}):"Aún sin datos: ejecuta el workflow.";
+ lastUpd=d.updated;render();return{updated:d.updated,fresh:items.filter(i=>!old.has(i.id)).length}}
+load().catch(()=>$("upd").textContent="No se pudo cargar items.json");
+const CF=()=>{try{return JSON.parse(localStorage.getItem("mg_gh")||"{}")}catch(e){return{}}};
+{const c=CF();$("g_repo").value=c.repo||"";$("g_tok").value=c.token||"";$("g_br").value=c.branch||"main"}
+$("save").onclick=()=>{try{localStorage.setItem("mg_gh",JSON.stringify({repo:$("g_repo").value.trim(),token:$("g_tok").value.trim(),branch:$("g_br").value.trim()||"main"}));$("st").textContent="Guardado solo en este navegador."}catch(e){$("st").textContent="No se pudo guardar."}};
+$("sync").onclick=async()=>{
+ const c=CF(),st=$("st"),btn=$("sync");
+ if(!c.repo||!c.token){$("cfg").open=true;st.textContent="Primero configura tu repositorio y token.";return}
+ btn.disabled=true;st.textContent="Solicitando búsqueda…";const before=lastUpd;
+ try{const r=await fetch(`https://api.github.com/repos/${c.repo}/actions/workflows/monitor.yml/dispatches`,{method:"POST",
+  headers:{"Authorization":"Bearer "+c.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},body:JSON.stringify({ref:c.branch||"main"})});
+  if(r.status!==204){st.textContent="GitHub rechazó la solicitud ("+r.status+"). Revisa repositorio, rama y permisos del token.";btn.disabled=false;return}
+ }catch(e){st.textContent="Sin conexión con GitHub.";btn.disabled=false;return}
+ st.textContent="🔎 Buscando en DOF, Profeco, CNE, ASEA y medios… (2–4 min)";
+ for(let n=0;n<24;n++){await new Promise(r=>setTimeout(r,15000));
+  try{const x=await load();if(x.updated!==before){st.textContent=x.fresh?`✅ ${x.fresh} novedad(es) nueva(s).`:"✅ Búsqueda terminada: sin novedades nuevas.";btn.disabled=false;return}}catch(e){}}
+ st.textContent="Sigue en proceso; recarga en unos minutos.";btn.disabled=false};
+function render(){
+ $("fp").innerHTML=[["hoy","📅 Hoy"],["semana","Esta semana"]].map(([v,t])=>`<button class="chip ${fp===v?"on":""}" data-p="${v}">${t}</button>`).join("");
+ $("fl").innerHTML=["todos","alto","medio","bajo"].map(v=>`<button class="chip ${fl===v?"on":""}" data-l="${v}">${v==="todos"?"Todos":EM[v]+" "+LV[v]}</button>`).join("");
+ $("fo").innerHTML=["todas","Profeco","CNE","ASEA"].map(v=>`<button class="chip ${fo===v?"on":""}" data-o="${v}">${v==="todas"?"Todos los organismos":v}</button>`).join("");
+ $("list").innerHTML=items.filter(i=>(fp==="semana"||i.date===TODAY)&&(fl==="todos"||i.level===fl)&&(fo==="todas"||i.org===fo)).map(i=>`<div class="card ${i.level}">
+ <div class="top"><span class="b ${i.level}">${LV[i.level]}</span><b>${esc(i.org)}</b><span>${esc(i.date)}</span></div>
+ <h3>${esc(i.title)}</h3><p>${esc(i.summary)}</p>${i.action?`<p class="do"><b>Qué hacer:</b> ${esc(i.action)}</p>`:""}
+ <div class="row"><label><input type="checkbox" style="width:auto" data-s="${i.id}" ${sel.has(i.id)?"checked":""}> Incluir</label><a href="${esc(i.url)}" target="_blank" rel="noopener">Fuente ↗</a></div></div>`).join("")||`<p class='sub'>Sin novedades ${fp==="hoy"?"hoy":"esta semana"} con estos filtros.</p>`;
+ $("cnt").textContent=sel.size}
+document.addEventListener("click",e=>{const t=e.target;if(t.dataset.l){fl=t.dataset.l;render()}if(t.dataset.o){fo=t.dataset.o;render()}if(t.dataset.p){fp=t.dataset.p;render()}});
+document.addEventListener("change",e=>{const s=e.target.dataset.s;if(!s)return;e.target.checked?sel.add(s):sel.delete(s);$("cnt").textContent=sel.size});
+$("gen").onclick=()=>{const its=items.filter(i=>sel.has(i.id));if(!its.length){$("rep").value="Selecciona al menos una novedad.";$("repbox").open=true;return}
+ const c=$("cli").value.trim(),d=new Date().toLocaleDateString("es-MX",{day:"numeric",month:"long",year:"numeric"});
+ let r=`*Actualización regulatoria – Estaciones de servicio*\n${c?"Cliente: "+c+"\n":""}Fecha: ${d}\n`;
+ for(const i of its)r+=`\n${EM[i.level]} *${LV[i.level]}* · ${i.org}\n*${i.title}*\n${i.summary}\n`+(i.action?`➡ Acción: ${i.action}\n`:"")+`Fuente: ${i.url}\n`;
+ r+="\nQuedamos atentos para apoyarle con cualquier trámite o duda.";
+ $("rep").value=r;$("repbox").open=true;$("wa").href="https://wa.me/?text="+encodeURIComponent(r);$("repbox").scrollIntoView({behavior:"smooth"})};
+$("rep").oninput=()=>$("wa").href="https://wa.me/?text="+encodeURIComponent($("rep").value);
+$("cp").onclick=async()=>{try{await navigator.clipboard.writeText($("rep").value);$("cp").textContent="¡Copiado!"}catch(e){}setTimeout(()=>$("cp").textContent="Copiar",1800)};
+if(location.hash==="#buscar"){history.replaceState(null,"",location.pathname+location.search);setTimeout(()=>$("sync").click(),800)}
+</script></body></html>

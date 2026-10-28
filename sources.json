@@ -1,0 +1,19 @@
+{
+  "rss": [
+    "https://news.google.com/rss/search?q=ASEA+estaciones+de+servicio&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=CNE+permisos+gasolineras&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=Profeco+gasolineras&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=DOF+NOM+estaciones+de+servicio+petrol%C3%ADferos&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=gasolineras+clausura+operativo&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=site:dof.gob.mx+petrol%C3%ADferos+OR+%22estaciones+de+servicio%22&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=Onexpo+gasolineros&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=Sener+precio+m%C3%A1ximo+gasolina+diesel&hl=es-419&gl=MX&ceid=MX:es-419",
+    "https://news.google.com/rss/search?q=Energ%C3%ADa+a+Debate+gasolineras&hl=es-419&gl=MX&ceid=MX:es-419"
+  ],
+  "html": [
+    "https://www.gob.mx/asea/archivo/prensa",
+    "https://www.gob.mx/profeco/archivo/prensa",
+    "https://www.gob.mx/cne/archivo/prensa"
+  ],
+  "dof": true
+}
